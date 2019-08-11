@@ -1,0 +1,98 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WAFTemplate'
+
+Parameters: 
+ NetworkModule:
+  Description: 'Stack name of  Network module.'
+  Type: String
+  Default: 'test'
+ BucketModule:
+  Description: 'Stack name of  S3 Buckets module.'
+  Type: String
+  Default: 'buckets'
+ ALBModule:
+  Description: 'Stack name of  EC2 module.'
+  Type: String
+  Default: 'test'
+ ACloudfrontModule:
+  Description: 'Stack name of  EC2 module.'
+  Type: String
+  Default: 'cloudfront-s3-origin'
+
+Resources:
+  # 1. cfn-modules: WAF 
+
+  SqlInjDetection: 
+    Type: AWS::WAFRegional::SqlInjectionMatchSet
+    Properties: 
+      Name: 'Find SQL injections in the query string'
+       
+      SqlInjectionMatchTuples: 
+        - FieldToMatch:
+            Type: QUERY_STRING
+          TextTransformation: URL_DECODE
+        - FieldToMatch:
+            Type: QUERY_STRING
+          TextTransformation: HTML_ENTITY_DECODE
+        - FieldToMatch:
+            Type: BODY
+          TextTransformation: URL_DECODE
+        - FieldToMatch:
+            Type: BODY
+          TextTransformation: HTML_ENTITY_DECODE
+        - FieldToMatch:
+            Type: URI
+          TextTransformation: URL_DECODE
+        - FieldToMatch:
+            Type: URI
+          TextTransformation: HTML_ENTITY_DECODE
+        - FieldToMatch:
+            Type: HEADER
+            Data: Cookie
+          TextTransformation: URL_DECODE
+        - FieldToMatch:
+            Type: HEADER
+            Data: Cookie
+          TextTransformation: HTML_ENTITY_DECODE
+        - FieldToMatch:
+            Type: HEADER
+            Data: Authorization
+          TextTransformation: URL_DECODE
+        - FieldToMatch:
+            Type: HEADER
+            Data: Authorization
+          TextTransformation: HTML_ENTITY_DECODE
+
+  SqlInjRule: 
+    Type: 'AWS::WAFRegional::Rule'
+    Properties: 
+      Name: 'SqlInjRule'
+      MetricName: 'SqlInjRule'
+      Predicates: 
+        - 
+          DataId: 
+            Ref: SqlInjDetection
+          Negated: false
+          Type: 'SqlInjectionMatch'
+
+  SqlInjWebACL: 
+    Type: 'AWS::WAFRegional::WebACL'
+    Properties: 
+      Name: 'Web ACL to block SQL injection in the query string'
+      DefaultAction: 
+        Type: 'ALLOW'
+      MetricName: 'SqlInjWebACL'
+      Rules: 
+        - 
+          Action: 
+            Type: 'BLOCK'
+          Priority: 1
+          RuleId: !Ref 'SqlInjRule'
+
+  MyWebACLAssociation: 
+    Type: 'AWS::WAFRegional::WebACLAssociation'
+    Properties: 
+       #ResourceArn: !Ref ALBModule.Id
+      ResourceArn: 'arn:aws:elasticloadbalancing:ap-southeast-2:345497999521:loadbalancer/app/test-Alb/a21f01ca1e32d16e'
+      WebACLId:  !Ref SqlInjWebACL
